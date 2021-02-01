@@ -1,6 +1,7 @@
-const { Observable, fromEvent, partition, combineLatest, zip } = rxjs;
-const { map, flatMap, take, skip } = rxjs.operators;
+const { Observable, fromEvent, partition, combineLatest, zip, Subject } = rxjs;
+const { map, flatMap, take, skip, multicast} = rxjs.operators;
 
+const subject = new Subject();
 const bufferStream = filename =>
   new Observable(async subscriber => {
     const ffmpeg = FFmpeg.createFFmpeg({
@@ -65,7 +66,7 @@ const mediaSourceOpen = fromEvent(mediaSource, "sourceopen");
 const bufferStreamReady = combineLatest(
   mediaSourceOpen,
   bufferStream("tests/4club-JTV-i63.mp4")
-).pipe(map(([, a]) => a));
+).pipe(map(([, a]) => a), multicast(subject));
 
 const sourceBufferUpdateEnd = bufferStreamReady.pipe(
   take(1),
@@ -93,7 +94,10 @@ zip(sourceBufferUpdateEnd, bufferStreamReady.pipe(skip(1)))
     map(([sourceBuf, buffer]) => {
       mediaSource.duration += 5;
       sourceBuf.timestampOffset += 5;
+      console.log(sourceBuf.timestampOffset, mediaSource.duration)
       sourceBuf.appendBuffer(buffer.buffer);
     })
   )
   .subscribe();
+
+bufferStreamReady.connect();
